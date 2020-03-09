@@ -3,8 +3,8 @@
 #include "EffekseerRendererLLGI.TextureLoader.h"
 #include "EffekseerRendererLLGI.RendererImplemented.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "../3rdParty/stb/stb_image.h"
+//#define STB_IMAGE_EFFEKSEER_IMPLEMENTATION
+//#include "../3rdParty/stb_effekseer/stb_image_effekseer.h"
 
 namespace EffekseerRendererLLGI
 {
@@ -18,9 +18,15 @@ TextureLoader::TextureLoader(GraphicsDevice* graphicsDevice, ::Effekseer::FileIn
 	{
 		m_fileInterface = &m_defaultFileInterface;
 	}
+
+	pngTextureLoader_.Initialize();
 }
 
-TextureLoader::~TextureLoader() { ES_SAFE_RELEASE(graphicsDevice_); }
+TextureLoader::~TextureLoader()
+{
+	ES_SAFE_RELEASE(graphicsDevice_);
+	pngTextureLoader_.Finalize();
+}
 
 Effekseer::TextureData* TextureLoader::Load(const EFK_CHAR* path, ::Effekseer::TextureType textureType)
 {
@@ -34,12 +40,34 @@ Effekseer::TextureData* TextureLoader::Load(const EFK_CHAR* path, ::Effekseer::T
 		char* data_texture = new char[size_texture];
 		reader->Read(data_texture, size_texture);
 
+		if (pngTextureLoader_.Load(data_texture, size_texture, false))
+		{
+			LLGI::TextureInitializationParameter texParam;
+			texParam.Size = LLGI::Vec2I(pngTextureLoader_.GetWidth(), pngTextureLoader_.GetHeight());
+			auto texture = graphicsDevice_->GetGraphics()->CreateTexture(texParam);
+			auto buf = texture->Lock();
+
+			texture->Unlock();
+
+			textureData = new Effekseer::TextureData();
+			textureData->UserPtr = texture;
+			textureData->UserID = 0;
+			textureData->TextureFormat = Effekseer::TextureFormatType::ABGR8;
+			textureData->Width = pngTextureLoader_.GetWidth();
+			textureData->Height = pngTextureLoader_.GetHeight();
+		}
+
+		delete[] data_texture;
+		return nullptr;
+
+		/*
 		unsigned char* pixels;
 		int width;
 		int height;
 		int bpp;
 
-		pixels = (uint8_t*)stbi_load_from_memory((stbi_uc const*)data_texture, size_texture, &width, &height, &bpp, 0);
+		pixels =
+			(uint8_t*)Effekseer::stbi_load_from_memory((Effekseer::stbi_uc const*)data_texture, size_texture, &width, &height, &bpp, 0);
 
 		if (width > 0)
 		{
@@ -105,8 +133,9 @@ Effekseer::TextureData* TextureLoader::Load(const EFK_CHAR* path, ::Effekseer::T
 		}
 
 		delete[] data_texture;
-		stbi_image_free(pixels);
+		Effekseer::stbi_image_free(pixels);
 		return textureData;
+		*/
 	}
 
 	return nullptr;

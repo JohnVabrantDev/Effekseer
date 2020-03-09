@@ -1,6 +1,11 @@
 ﻿
 #include "EffekseerRenderer.PngTextureLoader.h"
 
+#define STB_IMAGE_EFFEKSEER_IMPLEMENTATION
+#include "../3rdParty/stb_effekseer/stb_image_effekseer.h"
+
+#define STB
+
 #ifdef __PNG_DDI
 
 #else
@@ -14,7 +19,7 @@ namespace EffekseerRenderer
 #else
 static void PngReadData(png_structp png_ptr, png_bytep data, png_size_t length)
 {
-	uint8_t** d = (uint8_t**) png_get_io_ptr(png_ptr);
+	uint8_t** d = (uint8_t**)png_get_io_ptr(png_ptr);
 	memcpy(data, *d, length);
 	(*d) += length;
 }
@@ -22,31 +27,99 @@ static void PngReadData(png_structp png_ptr, png_bytep data, png_size_t length)
 
 bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 {
-#ifdef __PNG_DDI
-	auto global = GlobalAlloc(GMEM_MOVEABLE,size);
+#if defined(STB)
+
+	unsigned char* pixels = nullptr;
+	int width = 0;
+	int height = 0;
+	int bpp = 0;
+
+	pixels = (uint8_t*)Effekseer::stbi_load_from_memory((Effekseer::stbi_uc const*)data, size, &width, &height, &bpp, 0);
+
+	if (width > 0)
+	{
+		textureData.resize(width * height * 4);
+		textureWidth = width;
+		textureHeight = height;
+		auto buf = textureData.data();
+
+		if (bpp == 4)
+		{
+			memcpy(textureData.data(), pixels, width * height * 4);
+		}
+		else if (bpp == 2)
+		{
+			// Gray+Alpha
+			for (int h = 0; h < height; h++)
+			{
+				for (int w = 0; w < width; w++)
+				{
+					((uint8_t*)buf)[(w + h * width) * 4 + 0] = pixels[(w + h * width) * 2 + 0];
+					((uint8_t*)buf)[(w + h * width) * 4 + 1] = pixels[(w + h * width) * 2 + 0];
+					((uint8_t*)buf)[(w + h * width) * 4 + 2] = pixels[(w + h * width) * 2 + 0];
+					((uint8_t*)buf)[(w + h * width) * 4 + 3] = pixels[(w + h * width) * 2 + 1];
+				}
+			}
+		}
+		else if (bpp == 1)
+		{
+			// Gray
+			for (int h = 0; h < height; h++)
+			{
+				for (int w = 0; w < width; w++)
+				{
+					((uint8_t*)buf)[(w + h * width) * 4 + 0] = pixels[(w + h * width) * 2 + 0];
+					((uint8_t*)buf)[(w + h * width) * 4 + 1] = pixels[(w + h * width) * 2 + 0];
+					((uint8_t*)buf)[(w + h * width) * 4 + 2] = pixels[(w + h * width) * 2 + 0];
+					((uint8_t*)buf)[(w + h * width) * 4 + 3] = 255;
+				}
+			}
+		}
+		else
+		{
+			for (int h = 0; h < height; h++)
+			{
+				for (int w = 0; w < width; w++)
+				{
+					((uint8_t*)buf)[(w + h * width) * 4 + 0] = pixels[(w + h * width) * 3 + 0];
+					((uint8_t*)buf)[(w + h * width) * 4 + 1] = pixels[(w + h * width) * 3 + 1];
+					((uint8_t*)buf)[(w + h * width) * 4 + 2] = pixels[(w + h * width) * 3 + 2];
+					((uint8_t*)buf)[(w + h * width) * 4 + 3] = 255;
+				}
+			}
+		}
+
+		Effekseer::stbi_image_free(pixels);
+		return true;
+	}
+
+	Effekseer::stbi_image_free(pixels);
+	return false;
+
+#elif defined(__PNG_DDI)
+	auto global = GlobalAlloc(GMEM_MOVEABLE, size);
 	auto buf = GlobalLock(global);
 	CopyMemory(buf, data, size);
 	GlobalUnlock(global);
 	LPSTREAM stream = NULL;
-	CreateStreamOnHGlobal( global, false, &stream);
+	CreateStreamOnHGlobal(global, false, &stream);
 	Gdiplus::Bitmap* bmp = Gdiplus::Bitmap::FromStream(stream);
 	ES_SAFE_RELEASE(stream);
 	GlobalFree(global);
 
-
-	if( bmp != NULL && bmp->GetLastStatus() == Gdiplus::Ok )
+	if (bmp != NULL && bmp->GetLastStatus() == Gdiplus::Ok)
 	{
 		textureWidth = bmp->GetWidth();
 		textureHeight = bmp->GetHeight();
 		textureData.resize(textureWidth * textureHeight * 4);
 
-		if(rev)
+		if (rev)
 		{
-			for(auto y = 0; y < textureHeight; y++ )
+			for (auto y = 0; y < textureHeight; y++)
 			{
-				for(auto x = 0; x < textureWidth; x++ )
+				for (auto x = 0; x < textureWidth; x++)
 				{
-					Gdiplus::Color  color;
+					Gdiplus::Color color;
 					bmp->GetPixel(x, textureHeight - y - 1, &color);
 
 					textureData[(x + y * textureWidth) * 4 + 0] = color.GetR();
@@ -58,11 +131,11 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 		}
 		else
 		{
-			for(auto y = 0; y < textureHeight; y++ )
+			for (auto y = 0; y < textureHeight; y++)
 			{
-				for(auto x = 0; x < textureWidth; x++ )
+				for (auto x = 0; x < textureWidth; x++)
 				{
-					Gdiplus::Color  color;
+					Gdiplus::Color color;
 					bmp->GetPixel(x, y, &color);
 
 					textureData[(x + y * textureWidth) * 4 + 0] = color.GetR();
@@ -72,7 +145,7 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 				}
 			}
 		}
-		
+
 		ES_SAFE_DELETE(bmp);
 		return true;
 	}
@@ -81,15 +154,15 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 		ES_SAFE_DELETE(bmp);
 		return false;
 	}
-	
+
 	ES_SAFE_DELETE(bmp);
 
 #elif PNG_LIBPNG_VER < 10504 /* Libpng 1.2系 */
-	uint8_t* data_ = (uint8_t*) data;
+	uint8_t* data_ = (uint8_t*)data;
 
 	/* pngアクセス構造体を作成 */
 	png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	
+
 	/* リードコールバック関数指定 */
 	png_set_read_fn(png, &data_, &PngReadData);
 
@@ -177,17 +250,17 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 			}
 		}
 	}
-	
-	delete [] image;
+
+	delete[] image;
 	png_destroy_read_struct(&png, &png_info, NULL);
 
 	return true;
-#else /* Libpng 1.6系 */
+#else						 /* Libpng 1.6系 */
 	textureWidth = 0;
 	textureHeight = 0;
 	textureData.clear();
 
-	uint8_t* data_ = (uint8_t*) data;
+	uint8_t* data_ = (uint8_t*)data;
 
 	/* pngアクセス構造体を作成 */
 	png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -207,7 +280,7 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 		// {
 		// 	log->WriteLineStrongly("pngファイルのヘッダの読み込みに失敗しました。");
 		// }
-		
+
 		return false;
 	}
 
@@ -230,24 +303,24 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 	switch (color_type)
 	{
 	case PNG_COLOR_TYPE_PALETTE:
+	{
+		png_set_palette_to_rgb(png);
+
+		png_bytep trans_alpha = NULL;
+		int num_trans = 0;
+		png_color_16p trans_color = NULL;
+
+		png_get_tRNS(png, png_info, &trans_alpha, &num_trans, &trans_color);
+		if (trans_alpha != NULL)
 		{
-			png_set_palette_to_rgb(png);
-
-			png_bytep trans_alpha = NULL;
-			int num_trans = 0;
-			png_color_16p trans_color = NULL;
-
-			png_get_tRNS(png, png_info, &trans_alpha, &num_trans, &trans_color);
-			if (trans_alpha != NULL)
-			{
-				pixelBytes = 4;
-			}
-			else
-			{
-				pixelBytes = 3;
-			}
+			pixelBytes = 4;
 		}
-		break;
+		else
+		{
+			pixelBytes = 3;
+		}
+	}
+	break;
 	case PNG_COLOR_TYPE_GRAY:
 		png_set_expand_gray_1_2_4_to_8(png);
 		pixelBytes = 3;
@@ -313,26 +386,24 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 
 	return true;
 #endif
-}
+	}
 
-void PngTextureLoader::Unload()
-{
-	textureData.clear();
-}
+	void PngTextureLoader::Unload() { textureData.clear(); }
 
-void PngTextureLoader::Initialize()
-{
-#ifdef __PNG_DDI
-	Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL );
+	void PngTextureLoader::Initialize()
+	{
+#if defined(STB)
+#elif defined(__PNG_DDI)
+		Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 #endif
-}
+	}
 
-void PngTextureLoader::Finalize()
-{
-#ifdef __PNG_DDI
-	Gdiplus::GdiplusShutdown(gdiplusToken);
+	void PngTextureLoader::Finalize()
+	{
+#if defined(STB)
+#elif defined(__PNG_DDI)
+		Gdiplus::GdiplusShutdown(gdiplusToken);
 #endif
-}
+	}
 
-}
-
+} // namespace EffekseerRenderer
