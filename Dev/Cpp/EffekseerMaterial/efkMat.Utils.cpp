@@ -57,13 +57,14 @@ bool IsValidName(const char* name)
 	int32_t i = 0;
 	while (true)
 	{
+
+		if (name[i] == 0)
+			break;
+
 		if (!isdigit(name[i]) && !isalpha(name[i]) && name[i] != '_')
 		{
 			return false;
 		}
-
-		if (name[i] == 0)
-			break;
 
 		i++;
 	}
