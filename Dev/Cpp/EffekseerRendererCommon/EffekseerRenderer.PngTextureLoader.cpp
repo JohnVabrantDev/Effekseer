@@ -1,5 +1,6 @@
 ﻿
 #include "EffekseerRenderer.PngTextureLoader.h"
+#include <chrono>
 
 #define STB_IMAGE_EFFEKSEER_IMPLEMENTATION
 #include "../3rdParty/stb_effekseer/stb_image_effekseer.h"
@@ -33,6 +34,8 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 	int width = 0;
 	int height = 0;
 	int bpp = 0;
+
+	auto pre = std::chrono::high_resolution_clock::now();
 
 	pixels = (uint8_t*)Effekseer::stbi_load_from_memory((Effekseer::stbi_uc const*)data, size, &width, &height, &bpp, 0);
 
@@ -90,6 +93,13 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 		}
 
 		Effekseer::stbi_image_free(pixels);
+
+		auto tmp = std::chrono::high_resolution_clock::now(); // 計測終了時刻を保存
+		auto dur = tmp - pre;
+		auto count = std::chrono::duration_cast<std::chrono::microseconds>(dur).count();
+		time_ += count;
+
+		printf("Time %d\n", time_);
 		return true;
 	}
 
@@ -97,6 +107,7 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 	return false;
 
 #elif defined(__PNG_DDI)
+	auto pre = std::chrono::high_resolution_clock::now();
 	auto global = GlobalAlloc(GMEM_MOVEABLE, size);
 	auto buf = GlobalLock(global);
 	CopyMemory(buf, data, size);
@@ -147,6 +158,12 @@ bool PngTextureLoader::Load(void* data, int32_t size, bool rev)
 		}
 
 		ES_SAFE_DELETE(bmp);
+		auto tmp = std::chrono::high_resolution_clock::now(); // 計測終了時刻を保存
+		auto dur = tmp - pre;
+		auto count = std::chrono::duration_cast<std::chrono::microseconds>(dur).count();
+		time_ += count;
+
+		printf("Time %d\n", time_);
 		return true;
 	}
 	else

@@ -33,6 +33,8 @@ private:
 	std::vector<uint8_t> textureData;
 	int32_t textureWidth;
 	int32_t textureHeight;
+	int32_t time_ = 0;
+
 public:
 
 	bool Load(void* data, int32_t size, bool rev);
